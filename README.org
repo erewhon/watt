@@ -1,0 +1,18 @@
+* Watch All The Things
+
+WATT
+
+Remove "insecure."   Proxy is always used in SSL mode.
+
+Switch from "nginx" to other profit.   Candidates:
+- Traefik
+- Caddy
+- Evnjoy
+
+Use Docker volumes instead of local state
+
+Support launching from Kubernetes
+
+
+Makes sure your web sites and domains are healthy.
+
