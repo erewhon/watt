@@ -4,10 +4,11 @@ WATT
 
 Remove "insecure."   Proxy is always used in SSL mode.
 
-Switch from "nginx" to other profit.   Candidates:
+Switch from "nginx" to other proxy.   Candidates:
 - Traefik
 - Caddy
-- Evnjoy
+- Envoy
+- Roll your own
 
 Use Docker volumes instead of local state
 
@@ -15,4 +16,9 @@ Support launching from Kubernetes
 
 
 Makes sure your web sites and domains are healthy.
+
+Steps:
+- initial setup (network, volumes)
+- update containers (re-builds as necessary)
+- (re)start it
 

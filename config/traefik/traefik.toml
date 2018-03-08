@@ -1,0 +1,23 @@
+# debug = true
+logLevel = "DEBUG"
+
+[entryPoints]
+    [entryPoints.http]
+    address = ":28080"
+    #        [entryPoints.http.redirect]
+    #        entryPoint = "https"
+    [entryPoints.https]
+    address = ":28443"
+            [entryPoints.https.tls]
+            # since no cert specified, just self sign (for now)
+
+# API definition
+[api]
+    entryPoint = "traefik"
+    dashboard = true
+
+[docker]
+endpoint = "unix:///var/run/docker.sock"
+domain = "docker.localhost"
+watch = true
+exposedbydefault = true

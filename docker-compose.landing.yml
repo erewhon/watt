@@ -1,0 +1,193 @@
+#
+# This is the master docker compose file
+#
+version: '2'
+
+services:
+  # Runs on your node(s) and forwards node(host) metrics to Prometheus.
+  master-nodeexporter:
+    image: prom/node-exporter:v0.14.0
+    expose:
+      - 9100
+    restart: always
+    labels:
+      container_group: monitoring
+    # environment:
+    #   - VIRTUAL_HOST=prometheus.${DOMAIN}
+    #   - LETSENCRYPT_HOST=prometheus.${DOMAIN}
+    #   - LETSENCRYPT_EMAIL=admin@${DOMAIN}
+    #   - LETSENCRYPT_TEST=false
+    #   - HTTPS_METHOD=nohttp
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+
+  # Runs on your node(s) and forwards container metrics to Prometheus.
+  master-cadvisor:
+    image: google/cadvisor:v0.25.0
+    expose:
+      - 8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: always
+    labels:
+      container_group: monitoring
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+    # once everything is verified, remove port
+    ports:
+      - 8081:8080
+ 
+  prometheus:
+    image: prom/prometheus:v1.7.1
+    expose:
+      - 9090
+    volumes:
+      - prometheus-data:/prometheus
+      - ./config/prometheus:/etc/prometheus
+    restart: always
+    command:
+      - "-config.file=/etc/prometheus/prometheus.yml"
+      - "-storage.local.path=/prometheus"
+      - "-web.console.libraries=/etc/prometheus/console_libraries"
+      - "-web.console.templates=/etc/prometheus/consoles"
+      - "-web.listen-address=:9090"
+      - "-alertmanager.url=http://alertmanager:9093"
+      - "-storage.local.memory-chunks=300000"
+      - "-storage.local.retention=744h"
+    labels:
+      container_group: monitoring
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+    # once everything is verified, remove ports
+    ports:
+      - 9090:9090
+
+  # Alerting plugin wrapping Prometheus and taking care of your metric alerting needs.
+  alertmanager:
+    image: prom/alertmanager:v0.8.0
+    expose:
+      - 9093
+    restart: always
+    volumes:
+      - ./config/alertmanager/:/etc/alertmanager/
+      - alertmanager-data:/alertmanager
+    command:
+      - '-config.file=/etc/alertmanager/config.yml'
+      - '-storage.path=/alertmanager'
+    labels:
+      container_group: monitoring
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+    # environment:
+    #   - VIRTUAL_HOST=alertmanager.${DOMAIN}
+    #   - LETSENCRYPT_HOST=alertmanager.${DOMAIN}
+    #   - LETSENCRYPT_EMAIL=admin@${DOMAIN}
+    #   - LETSENCRYPT_TEST=false
+    #   - HTTPS_METHOD=nohttp
+    ports:
+      - 9093:9093
+
+  # Verify host is running
+  blackboxprober:
+    image: prom/blackbox-exporter:v0.10.0
+    volumes:
+      - ./config/blackboxprober:/etc/blackbox_exporter
+    ports:
+      - 9115:9115
+    restart: always
+    labels:
+      container_group: monitoring
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+    ports:
+      - 9115:9115
+
+  # Pretty frontend to explore and check out all your metrics.
+  grafana:
+    image: grafana/grafana:4.4.1
+    expose:
+      - 3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: always
+    labels:
+      container_group: monitoring
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://172.16.0.38:12201
+    #     labels: container_group
+    # environment:
+    #   - GF_SECURITY_ADMIN_USER=admin
+    # once secured, remove ports
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    # environment:
+    #   - GF_SECURITY_ADMIN_PASSWORD=${PASSWORD}
+    #   - VIRTUAL_HOST=grafana.${DOMAIN}
+    #   - LETSENCRYPT_HOST=grafana.${DOMAIN}
+    #   - LETSENCRYPT_EMAIL=admin@${DOMAIN}
+    #   - LETSENCRYPT_TEST=false
+    #   - HTTPS_METHOD=nohttp
+
+  # Set up content
+  landing:
+    image: httpd:2.4
+    restart: always
+    labels:
+      - "traefik.backend=landing"
+      - "traefik.frontend.rule=Host:landing.docker.localhost"
+    volumes:
+      - ./landing/public:/usr/local/apache2/htdocs
+
+  # Set up reverse proxy
+  proxy:
+    image: traefik
+    # command: --api --docker --docker.domain=docker.localhost --logLevel=DEBUG
+    expose:
+      - 28080
+      - 28443
+    ports:
+      - "80:80"
+      - "28080:28080"
+      - "28443:28443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/traefik/traefik.toml:/traefik.toml
+    #  - /dev/null:/traefik.toml
+
+# Extra-network is necessary to have a dedicated IP for Logstash to forwards log to.
+networks:
+  default:
+    external:
+      name: monitoring_logging
+
+volumes:
+  alertmanager-data:
+    external: true
+
+  prometheus-data:
+    external: true
+
+  grafana-data:
+    external: true
